@@ -10,37 +10,60 @@ angular.module('movieApp', ['ngRoute'])
 	        });
 	})
 	
-	.controller('homeCtrl', function($scope, personSrv, zoneSrv, saveSrv) {
+	.controller('homeCtrl', function($scope, personSrv, saveSrv) {
 		
 	    	$('#searchButton').on('click', function (e) {
 
 	    		$scope.movies = '';
 
-	    		var name = $('#nameText').val();
-	    		
-	    		personSrv.getPerson(name).then(function(data){
-	    			var arrayMovies = [];
-	    			for (var i = 0; i < data.data[0].filmography.actor.length; i++) { 
-	    				arrayMovies.push(data.data[0].filmography.actor[i].title);
-	    			}
-	    			$scope.movies = arrayMovies;
-	    			/*
-	    			var lat = parseFloat(data.data[0].lat);
-	    			var lon = parseFloat(data.data[0].lon);
-		    		var zones = saveSrv.getObject('zones');
-		    		
-		    		if(Object.keys(zones).length == 0){
-		    			zoneSrv.getZones().then(function(data){
-		    				zones = data;
-		    				saveSrv.setObject('zones', data);
-		    				$scope.color = zoneSrv.getTariff(lon, lat, zones.data);
-		    			});
-		    		}
-		    		else {
-		    			$scope.color = zoneSrv.getTariff(lon, lat, zones.data);
-		    		}
-		    		*/
-	    		});
+	    		var name = $('#nameText').val().toLowerCase();
+	    		var key = name.replace(" ","_");
+	    		var obj = saveSrv.getObject(key);
+	    		console.log(obj);
+	    		if (!obj.movies) {
+	    			console.log("zoeken");
+		    		personSrv.getPerson(name).then(function(data){
+		    			console.log(data.data);
+		    			if (data.data != null) {
+			    			console.log(data);
+			    			var stringMovies = "";
+			    			console.log(data.data[0]);
+			    			var l = 0;
+			    			var sex = 0;
+			    			if (data.data[0].filmography.actor) {
+			    				l = data.data[0].filmography.actor.length;
+			    			}
+			    			else {
+			    				l = data.data[0].filmography.actress.length;
+			    				sex = 1
+			    			}
+			    			for (var i = 0; i < l; i++) {
+			    				stringMovies += '"';
+			    				if (sex == 0) {
+			    					var title = data.data[0].filmography.actor[i].title;
+			    				}
+			    				else {
+			    					var title = data.data[0].filmography.actress[i].title;
+			    				}
+			    				stringMovies += title + '",';
+			    			}
+			    			if(stringMovies.length > 0) {
+			    				stringMovies = stringMovies.slice(0,-1);
+			    			}
+			    			
+			    			stringMovies = '{ "name" : "' + name.toLowerCase() + '", "movies" : [' + stringMovies + ']}';
+			    			var jsonMovies = JSON.parse(stringMovies);
+			    			$scope.movies = jsonMovies.movies;
+			    			saveSrv.setObject(key, jsonMovies);		
+		    			}
+		    			else {
+		    				$scope.movies = "Acteur/actrice bestaat niet";
+		    			}
+		    		});
+	    		}
+	    		else {
+		    		$scope.movies = obj.movies;
+	    		}
 	    	});
     })
    
@@ -60,25 +83,12 @@ angular.module('movieApp', ['ngRoute'])
 	    		};
     })
     
-    .service('zoneSrv', function($http, $q) {
-    		this.getZones = function() {
-			var q = $q.defer();
-			$http.get('http://datasets.antwerpen.be/v4/gis/paparkeertariefzones.json')
-				.then(function(data, status, headers, config){
-					q.resolve(data.data);
-				}, function error(err) {
-					q.reject(err);
-				});
-			
-			return q.promise;
-		};
-    })
-    
     .service('saveSrv', function($window, $http){
 		  this.setObject = function(key, value){
+			  console.log(key);
 			  $window.localStorage[key] = JSON.stringify(value);
 			  //Save in CouchDB
-			  //$http.put('../../' + key, value);
+			  $http.put('../../' + key, value);
 		  };
 		  
 		  this.getObject = function(key){
